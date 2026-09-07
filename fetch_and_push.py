@@ -23,8 +23,6 @@ from zoneinfo import ZoneInfo
 import requests
 
 try:
-    # Optional: load a local .env for convenience. In GitHub Actions the values
-    # come from the workflow env block, so python-dotenv isn't needed there.
     from dotenv import load_dotenv
 
     load_dotenv()
@@ -35,10 +33,6 @@ TIMEZONE = os.environ.get("TIMEZONE", "Europe/London")
 TEMP_UNIT = os.environ.get("TEMP_UNIT", "celsius")
 TEMP_UNIT_SHORT = "F" if TEMP_UNIT == "fahrenheit" else "C"
 
-# A team whose next game is further away than this many days is treated as
-# "out of season" and dropped from the Sportsball panel, rather than showing a
-# fixture months out. In-season schedule gaps (byes, international breaks) are
-# well under 30 days for every league here.
 SPORTS_HORIZON_DAYS = int(os.environ.get("SPORTS_HORIZON_DAYS") or "30")
 
 WMO_WEATHER_CODES = {
