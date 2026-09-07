@@ -2,9 +2,11 @@ name: Update TRMNL dashboard
 
 on:
   schedule:
-    # Every 30 minutes. TRMNL free tier allows up to 12 webhook pushes/hour,
-    # so this stays well under the limit.
-    - cron: "*/30 * * * *"
+    # Twice an hour, at :13 and :43. Deliberately off the :00/:30 marks —
+    # GitHub delays or drops scheduled runs under load, and the top/half of
+    # the hour are the most congested. TRMNL free tier allows 12 webhook
+    # pushes/hour, so this stays well under the limit.
+    - cron: "13,43 * * * *"
   workflow_dispatch: {}
 
 jobs:

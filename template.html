@@ -30,6 +30,10 @@
     .hourly .hr { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
     .forecast .fc-t, .hourly .hr-t { white-space: nowrap; }
 
+    /* Date sits tight to the top of the column; small gap before the H/L/now line. */
+    .date-line { line-height: 1; margin-top: -6px; }
+    .date-line + .wx-row { margin-top: 8px; }
+
     .wx--clear{-webkit-mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Ccircle%20cx%3D%2712%27%20cy%3D%2712%27%20r%3D%274.5%27%2F%3E%3Cpath%20d%3D%27M12%201.5v3M12%2019.5v3M1.5%2012h3M19.5%2012h3M4.2%204.2l2%202M17.8%2017.8l2%202M19.8%204.2l-2%202M6.2%2017.8l-2%202%27%2F%3E%3C%2Fsvg%3E");mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Ccircle%20cx%3D%2712%27%20cy%3D%2712%27%20r%3D%274.5%27%2F%3E%3Cpath%20d%3D%27M12%201.5v3M12%2019.5v3M1.5%2012h3M19.5%2012h3M4.2%204.2l2%202M17.8%2017.8l2%202M19.8%204.2l-2%202M6.2%2017.8l-2%202%27%2F%3E%3C%2Fsvg%3E")}
     .wx--partly{-webkit-mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Ccircle%20cx%3D%278%27%20cy%3D%277%27%20r%3D%273.5%27%2F%3E%3Cpath%20d%3D%27M8%201v2M2%207H0M2.7%201.7l1.4%201.4M13.3%201.7l-1.4%201.4%27%2F%3E%3Cpath%20d%3D%27M6%2021h10a4%204%200%200%200%200-8%206%206%200%200%200-11.3%201.5A3.5%203.5%200%200%200%206%2021z%27%2F%3E%3C%2Fsvg%3E");mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Ccircle%20cx%3D%278%27%20cy%3D%277%27%20r%3D%273.5%27%2F%3E%3Cpath%20d%3D%27M8%201v2M2%207H0M2.7%201.7l1.4%201.4M13.3%201.7l-1.4%201.4%27%2F%3E%3Cpath%20d%3D%27M6%2021h10a4%204%200%200%200%200-8%206%206%200%200%200-11.3%201.5A3.5%203.5%200%200%200%206%2021z%27%2F%3E%3C%2Fsvg%3E")}
     .wx--cloudy{-webkit-mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M7%2020h10a4.5%204.5%200%200%200%200-9%206%206%200%200%200-11.7%201.3A4%204%200%200%200%207%2020z%27%2F%3E%3C%2Fsvg%3E");mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M7%2020h10a4.5%204.5%200%200%200%200-9%206%206%200%200%200-11.7%201.3A4%204%200%200%200%207%2020z%27%2F%3E%3C%2Fsvg%3E")}
@@ -45,15 +49,18 @@
       <div class="column">
         <div class="item">
           <div class="content">
-            <span class="value value--large" style="white-space:nowrap">{{ current_time }}</span>
-            <span class="label">{{ current_date }}</span>
-          </div>
-        </div>
-
-        <div class="item">
-          <div class="content">
+            {% comment %}
+              Date is rendered from TRMNL's render clock, not the webhook payload,
+              so it stays correct between pushes (the device can't show a live
+              ticking clock anyway). "now" -> epoch seconds, shifted by
+              trmnl.user.utc_offset (the TRMNL account timezone, Account
+              settings, in seconds) to get local wall-clock time. `times: 1`
+              strips the day's leading zero in a cross-platform way.
+            {% endcomment %}
+            {% assign local_ts = "now" | date: "%s" | plus: trmnl.user.utc_offset %}
+            <span class="value value--large date-line">{{ local_ts | date: "%B" }} {{ local_ts | date: "%d" | times: 1 }}</span>
             <span class="wx-row">
-              <span class="value value--large">{{ weather_temp }}&deg;{{ temp_unit_short }}</span>
+              <span class="value value--small">H {{ today_hi }}&deg; &middot; L {{ today_lo }}&deg; &middot; now {{ weather_temp }}&deg;{{ temp_unit_short }}</span>
               <i class="wx wx--lg wx--{{ weather_icon }}"></i>
             </span>
             <span class="label">feels like {{ weather_feels_like }}&deg; &middot; {{ weather_humidity }}% humidity</span>

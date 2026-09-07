@@ -1,6 +1,6 @@
 # TRMNL Home Dashboard
 
-Combines time/date, current weather + condition icon, a next-6-hours strip, a
+Combines the date + today's high/low, current weather + condition icon, a next-6-hours strip, a
 5-day forecast strip, sunrise/sunset, and a sports panel showing the next game
 for Liverpool FC, the Toronto Blue Jays, the Toronto Maple Leafs, the Toronto
 Raptors, and the Buffalo Bills — soonest first, with out-of-season teams

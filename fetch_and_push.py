@@ -102,11 +102,6 @@ def fmt_date(dt):
     return f"{dt.strftime('%a %b')} {dt.day}"
 
 
-def fmt_full_date(dt):
-    """e.g. 'Saturday, September 6'."""
-    return f"{dt.strftime('%A, %B')} {dt.day}"
-
-
 def fmt_kickoff(iso_or_dt, tz_name=TIMEZONE):
     """e.g. 'Sat Sep 6, 3:00 PM'."""
     local = to_local(iso_or_dt, tz_name)
@@ -166,6 +161,9 @@ def get_weather_and_sun(lat, lon):
         "weather_description": WMO_WEATHER_CODES.get(current["weather_code"], "Unknown"),
         "weather_icon": wmo_icon(current["weather_code"]),
         "temp_unit_short": TEMP_UNIT_SHORT,
+        # daily[...][0] is today; the `forecast` strip above starts at [1].
+        "today_hi": round(daily["temperature_2m_max"][0]),
+        "today_lo": round(daily["temperature_2m_min"][0]),
         # Open-Meteo already returns these in the requested `timezone`, as naive
         # local wall-clock strings — parse directly, no further tz conversion.
         "sunrise_time": fmt_time(datetime.fromisoformat(daily["sunrise"][0])),
@@ -307,8 +305,9 @@ def build_merge_variables(football_data_key, lat, lon):
     """Gather every variable the template interpolates. Shared with preview.py."""
     now = datetime.now(ZoneInfo(TIMEZONE))
     return {
-        "current_time": fmt_time(now),
-        "current_date": fmt_full_date(now),
+        # The big date in the template is rendered by Liquid from TRMNL's render
+        # clock, not from here, so it stays correct between pushes. `updated_at`
+        # is still stamped here — it's meant to show data freshness.
         "updated_at": fmt_time(now),
         **get_weather_and_sun(lat, lon),
         **collect_games(football_data_key),

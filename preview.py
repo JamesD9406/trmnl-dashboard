@@ -41,14 +41,14 @@ TEMPLATE = HERE / "template.html"
 OUTPUT = HERE / "preview.html"
 
 SAMPLE = {
-    "current_time": "9:05 AM",
-    "current_date": "Saturday, September 6",
     "updated_at": "9:05 AM",
     "weather_temp": 18,
     "weather_feels_like": 17,
     "weather_humidity": 64,
     "weather_icon": "partly",
     "temp_unit_short": "C",
+    "today_hi": 19,
+    "today_lo": 11,
     "sunrise_time": "6:52 AM",
     "sunset_time": "7:56 PM",
     "forecast": [
@@ -127,8 +127,17 @@ def get_variables():
         return SAMPLE, "sample (fetch failed)"
 
 
+def trmnl_context():
+    """Mimic the `trmnl.*` object TRMNL injects into every plugin render, so the
+    Liquid-rendered date in template.html resolves during local preview too.
+    The template gets "now" from Liquid itself; it only needs the tz offset."""
+    now = datetime.now(ZoneInfo(app.TIMEZONE))
+    return {"user": {"utc_offset": int(now.utcoffset().total_seconds())}}
+
+
 def main():
     variables, source = get_variables()
+    variables = {**variables, "trmnl": trmnl_context()}
     rendered = Template(TEMPLATE.read_text(encoding="utf-8")).render(**variables)
     OUTPUT.write_text(PAGE.format(body=rendered, source=source), encoding="utf-8")
     print(f"Wrote {OUTPUT}  (data: {source})")
