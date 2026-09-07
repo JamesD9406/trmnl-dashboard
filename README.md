@@ -38,6 +38,10 @@ deciding whether you've got room for more plugins on the screen.
 
 ## One-time setup
 
+> New to this? [`SETUP.md`](SETUP.md) is a step-by-step guide for a first-time
+> coder on Windows — installing Git, Python, and VS Code, cloning your own copy,
+> and getting a preview running before you touch any of the steps below.
+
 ### 1. Create the TRMNL private plugin
 
 1. In the TRMNL dashboard: **Plugins → Private Plugin → Add New**.
