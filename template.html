@@ -1,0 +1,118 @@
+<!--
+  Paste this into your TRMNL private plugin's "Markup" editor (View: Full).
+  Use TRMNL's live preview there to fine-tune spacing/sizes for the OG display —
+  this is a starting layout, not pixel-final. Run `python preview.py` locally to
+  eyeball it before the device is set up.
+
+  Weather icons: the script sends a keyword (clear / partly / cloudy / fog /
+  rain / snow / storm) for current conditions, each forecast day, and each
+  hourly slot. The .wx--<keyword> rules below hold a URL-encoded line-icon SVG
+  used as a CSS mask, painted in currentColor so it renders solid black on the
+  e-ink panel. To tweak an icon, URL-decode its data URI, edit the paths, and
+  re-encode.
+-->
+<div class="view view--full">
+  <style>
+    .wx-row { display: flex; align-items: center; gap: 14px; }
+    .wx {
+      display: inline-block; background: currentColor;
+      -webkit-mask: no-repeat center / contain; mask: no-repeat center / contain;
+    }
+    .wx--lg { width: 46px; height: 46px; }
+    .forecast .wx { width: 26px; height: 26px; }
+    .hourly .wx { width: 22px; height: 22px; }
+
+    .forecast, .hourly {
+      width: 100%; display: flex; justify-content: space-between; gap: 6px;
+    }
+    .forecast { padding-top: 12px; border-top: 2px solid currentColor; }
+    .forecast .fc { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .hourly .hr { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .forecast .fc-t, .hourly .hr-t { white-space: nowrap; }
+
+    .wx--clear{-webkit-mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Ccircle%20cx%3D%2712%27%20cy%3D%2712%27%20r%3D%274.5%27%2F%3E%3Cpath%20d%3D%27M12%201.5v3M12%2019.5v3M1.5%2012h3M19.5%2012h3M4.2%204.2l2%202M17.8%2017.8l2%202M19.8%204.2l-2%202M6.2%2017.8l-2%202%27%2F%3E%3C%2Fsvg%3E");mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Ccircle%20cx%3D%2712%27%20cy%3D%2712%27%20r%3D%274.5%27%2F%3E%3Cpath%20d%3D%27M12%201.5v3M12%2019.5v3M1.5%2012h3M19.5%2012h3M4.2%204.2l2%202M17.8%2017.8l2%202M19.8%204.2l-2%202M6.2%2017.8l-2%202%27%2F%3E%3C%2Fsvg%3E")}
+    .wx--partly{-webkit-mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Ccircle%20cx%3D%278%27%20cy%3D%277%27%20r%3D%273.5%27%2F%3E%3Cpath%20d%3D%27M8%201v2M2%207H0M2.7%201.7l1.4%201.4M13.3%201.7l-1.4%201.4%27%2F%3E%3Cpath%20d%3D%27M6%2021h10a4%204%200%200%200%200-8%206%206%200%200%200-11.3%201.5A3.5%203.5%200%200%200%206%2021z%27%2F%3E%3C%2Fsvg%3E");mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Ccircle%20cx%3D%278%27%20cy%3D%277%27%20r%3D%273.5%27%2F%3E%3Cpath%20d%3D%27M8%201v2M2%207H0M2.7%201.7l1.4%201.4M13.3%201.7l-1.4%201.4%27%2F%3E%3Cpath%20d%3D%27M6%2021h10a4%204%200%200%200%200-8%206%206%200%200%200-11.3%201.5A3.5%203.5%200%200%200%206%2021z%27%2F%3E%3C%2Fsvg%3E")}
+    .wx--cloudy{-webkit-mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M7%2020h10a4.5%204.5%200%200%200%200-9%206%206%200%200%200-11.7%201.3A4%204%200%200%200%207%2020z%27%2F%3E%3C%2Fsvg%3E");mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M7%2020h10a4.5%204.5%200%200%200%200-9%206%206%200%200%200-11.7%201.3A4%204%200%200%200%207%2020z%27%2F%3E%3C%2Fsvg%3E")}
+    .wx--fog{-webkit-mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M3%206h18M3%2011h18M3%2016h13M3%2021h18%27%2F%3E%3C%2Fsvg%3E");mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M3%206h18M3%2011h18M3%2016h13M3%2021h18%27%2F%3E%3C%2Fsvg%3E")}
+    .wx--rain{-webkit-mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M7%2016h10a4.5%204.5%200%200%200%200-9%206%206%200%200%200-11.7%201.3A4%204%200%200%200%207%2016z%27%2F%3E%3Cpath%20d%3D%27M8%2019l-1.5%203M13%2019l-1.5%203M18%2019l-1.5%203%27%2F%3E%3C%2Fsvg%3E");mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M7%2016h10a4.5%204.5%200%200%200%200-9%206%206%200%200%200-11.7%201.3A4%204%200%200%200%207%2016z%27%2F%3E%3Cpath%20d%3D%27M8%2019l-1.5%203M13%2019l-1.5%203M18%2019l-1.5%203%27%2F%3E%3C%2Fsvg%3E")}
+    .wx--snow{-webkit-mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M12%202v20M3.5%207L20.5%2017M20.5%207L3.5%2017%27%2F%3E%3C%2Fsvg%3E");mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M12%202v20M3.5%207L20.5%2017M20.5%207L3.5%2017%27%2F%3E%3C%2Fsvg%3E")}
+    .wx--storm{-webkit-mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M7%2015h9a4.3%204.3%200%200%200%200-8.6A5.8%205.8%200%200%200%204.5%207.7%203.8%203.8%200%200%200%205%2015%27%2F%3E%3Cpath%20d%3D%27M13%2011l-4%206h4l-2%205%27%2F%3E%3C%2Fsvg%3E");mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M7%2015h9a4.3%204.3%200%200%200%200-8.6A5.8%205.8%200%200%200%204.5%207.7%203.8%203.8%200%200%200%205%2015%27%2F%3E%3Cpath%20d%3D%27M13%2011l-4%206h4l-2%205%27%2F%3E%3C%2Fsvg%3E")}
+  </style>
+
+  <div class="layout layout--col">
+    <div class="columns">
+
+      <div class="column">
+        <div class="item">
+          <div class="content">
+            <span class="value value--large" style="white-space:nowrap">{{ current_time }}</span>
+            <span class="label">{{ current_date }}</span>
+          </div>
+        </div>
+
+        <div class="item">
+          <div class="content">
+            <span class="wx-row">
+              <span class="value value--large">{{ weather_temp }}&deg;{{ temp_unit_short }}</span>
+              <i class="wx wx--lg wx--{{ weather_icon }}"></i>
+            </span>
+            <span class="label">feels like {{ weather_feels_like }}&deg; &middot; {{ weather_humidity }}% humidity</span>
+          </div>
+        </div>
+
+        <div class="item">
+          <div class="content">
+            <span class="value value--small">&#9728; {{ sunrise_time }} &nbsp; &#9790; {{ sunset_time }}</span>
+          </div>
+        </div>
+
+        <div class="item">
+          <div class="content">
+            <span class="hourly">
+              {% for h in hourly %}
+              <span class="hr">
+                <span class="label hr-t">{{ h.hour }}</span>
+                <i class="wx wx--{{ h.icon }}"></i>
+                <span class="label hr-t">{{ h.temp }}&deg;</span>
+              </span>
+              {% endfor %}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="column">
+        {% for g in games %}
+        <div class="item">
+          <div class="content">
+            <span class="value value--small">{{ g.team }}</span>
+            <span class="label">{{ g.opponent }} &middot; {{ g.kickoff }}</span>
+          </div>
+        </div>
+        {% else %}
+        <div class="item">
+          <div class="content">
+            <span class="label">No games in the next {{ sports_horizon_days }} days</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+    </div>
+
+    <div class="forecast">
+      {% for d in forecast %}
+      <span class="fc">
+        <span class="label fc-t">{{ d.day }}</span>
+        <i class="wx wx--{{ d.icon }}"></i>
+        <span class="label fc-t">{{ d.hi }}&deg; / {{ d.lo }}&deg;</span>
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="title_bar">
+    <span class="title">Home Dashboard</span>
+    <span class="instance">Updated {{ updated_at }}</span>
+  </div>
+</div>

@@ -1,0 +1,30 @@
+name: Update TRMNL dashboard
+
+on:
+  schedule:
+    # Every 30 minutes. TRMNL free tier allows up to 12 webhook pushes/hour,
+    # so this stays well under the limit.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - run: python fetch_and_push.py
+        env:
+          TRMNL_WEBHOOK_URL: ${{ secrets.TRMNL_WEBHOOK_URL }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          WEATHER_LAT: ${{ vars.WEATHER_LAT }}
+          WEATHER_LON: ${{ vars.WEATHER_LON }}
+          TIMEZONE: ${{ vars.TIMEZONE }}
+          TEMP_UNIT: ${{ vars.TEMP_UNIT }}
+          SPORTS_HORIZON_DAYS: ${{ vars.SPORTS_HORIZON_DAYS }}
