@@ -5,7 +5,8 @@ own machine and seeing a preview of the screen in your browser. No prior
 programming experience assumed. Take it one numbered step at a time.
 
 When you're done here, follow [`README.md`](README.md) → **One-time setup** to
-point it at *your* TRMNL device and put it on autopilot with GitHub Actions.
+point it at *your* TRMNL device and put it on autopilot (GitHub Actions running
+the update, and a free external timer to trigger it on schedule).
 
 Everything below is free.
 
@@ -200,8 +201,13 @@ you'll:
    already set to ignore it.
 5. Run `python fetch_and_push.py` to push real data to your screen.
 6. Add the same values as **Secrets and variables** in your GitHub repo so the
-   included GitHub Action keeps it updated every 30 minutes without your PC
-   being on.
+   included GitHub Action can run the update in the cloud, without your PC being
+   on.
+7. Set up a free external timer to trigger that Action on a schedule. GitHub's
+   own built-in schedule is unreliable for new repos — it can sit idle for
+   hours or days — so the README's **"Make the schedule reliable"** step walks
+   you through pointing a free service (cron-job.org) at it instead. Do this
+   step or the screen won't refresh on its own.
 
 ---
 

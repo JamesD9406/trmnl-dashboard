@@ -19,7 +19,10 @@ via GitHub Actions; TRMNL renders it through a template you control.
 - [`template.html`](template.html) — the markup you paste into TRMNL's private
   plugin editor; it interpolates the pushed variables.
 - [`.github/workflows/update-dashboard.yml`](.github/workflows/update-dashboard.yml) —
-  runs the script every 30 minutes for free on GitHub Actions.
+  runs the script on GitHub Actions. It has both a `schedule:` (cron) trigger
+  and a `workflow_dispatch` trigger. GitHub's cron is unreliable for new /
+  low-traffic private repos (see step 7 below), so the dependable way to keep it
+  ticking is an external timer hitting `workflow_dispatch`.
 - [`preview.py`](preview.py) — renders `template.html` with TRMNL's real
   framework CSS into a local `preview.html` so you can check the layout in a
   browser before the device is set up.
@@ -109,7 +112,86 @@ In the repo: **Settings → Secrets and variables → Actions**.
   its dashboard if you don't want to wait for the device's normal refresh
   cycle.
 
+### 7. Make the schedule reliable (external trigger)
+
+GitHub's `schedule:` (cron) trigger is best-effort: under load GitHub silently
+drops scheduled runs, and brand-new or low-traffic private repos are
+deprioritised heavily — a fresh repo can go hours or days before cron fires at
+all. The workflow also exposes a `workflow_dispatch` trigger, so the fix is to
+have a reliable external service call that on a timer. Everything stays in this
+repo; the external service only presses "Run workflow".
+
+**a. Create a fine-grained personal access token**
+
+GitHub → **Settings → Developer settings → Personal access tokens → Fine-grained
+tokens → Generate new token**:
+
+- **Name:** `trmnl-dashboard-cron`
+- **Resource owner:** your account
+- **Expiration:** 1 year — set a calendar reminder to regenerate it; the job
+  stops working silently when it lapses
+- **Repository access:** *Only select repositories* → `trmnl-dashboard`
+- **Permissions → Repository permissions → Actions:** *Read and write*
+  (Metadata read-only is added automatically)
+- Generate, and copy the `github_pat_…` string.
+
+That token can *only* trigger workflows in this one repo — it can't read your
+code or push commits.
+
+**b. Check it works from your machine**
+
+```powershell
+curl.exe -i -X POST `
+  -H "Accept: application/vnd.github+json" `
+  -H "Authorization: Bearer github_pat_XXXX" `
+  -H "X-GitHub-Api-Version: 2022-11-28" `
+  https://api.github.com/repos/<your-username>/trmnl-dashboard/actions/workflows/update-dashboard.yml/dispatches `
+  -d '{\"ref\":\"main\"}'
+```
+
+Expect `HTTP/2 204` and an empty body. A new run should appear under
+**Actions → Update TRMNL dashboard** within a few seconds.
+
+**c. Schedule it on cron-job.org**
+
+Sign up free at <https://console.cron-job.org>, then **Create cronjob**:
+
+| Field | Value |
+| --- | --- |
+| Title | TRMNL dashboard refresh |
+| URL | `https://api.github.com/repos/<your-username>/trmnl-dashboard/actions/workflows/update-dashboard.yml/dispatches` |
+| Schedule | custom: minutes `13,43`, every hour, every day |
+
+Under **Advanced / "Show more"**:
+
+- **Request method:** `POST`
+- **Request body:** `{"ref":"main"}`
+- **Headers:**
+  - `Accept: application/vnd.github+json`
+  - `Authorization: Bearer github_pat_XXXX`
+  - `X-GitHub-Api-Version: 2022-11-28`
+  - `Content-Type: application/json`
+
+Save, and enable **"Notify me by email if the job fails"** so you hear about it
+when the token expires. cron-job.org counts the `204` as success; if it flags a
+non-2xx expectation, set the expected status to `204`.
+
+The trade-off: your token sits on cron-job.org's servers. For this project the
+worst case is "someone can re-run your dashboard workflow", so it's a fine risk.
+To keep the secret in your own infrastructure instead, a Cloudflare Worker with
+a Cron Trigger does the same job.
+
+You can leave the `schedule:` block in the workflow as a fallback — if GitHub's
+cron ever does fire you just get a harmless duplicate push, still well under
+TRMNL's 12-pushes/hour cap. Remove it only if you want a single source of truth.
+
 ## Notes / known limitations
+
+- **GitHub scheduled runs are unreliable**: the `schedule:` cron in the workflow
+  is best-effort and GitHub drops runs under load, worst of all for new /
+  low-activity private repos. Step 7 above (external trigger via
+  `workflow_dispatch`) is what actually keeps the dashboard current; the cron is
+  just a fallback.
 
 - **Offseasons**: a team with no scheduled game, or whose next game is more
   than `SPORTS_HORIZON_DAYS` (default 30) away, is dropped from the panel
