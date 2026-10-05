@@ -2,20 +2,32 @@
 
 Combines the date + today's high/low, current weather + condition icon, a next-6-hours strip, a
 5-day forecast strip, sunrise/sunset, and a sports panel showing the next game
-for Liverpool FC, the Toronto Blue Jays, the Toronto Maple Leafs, the Toronto
-Raptors, and the Buffalo Bills — soonest first, with out-of-season teams
-dropped — into a single TRMNL screen, using a **private plugin (webhook
-strategy)**: a script fetches all the data and pushes it to TRMNL on a schedule
-via GitHub Actions; TRMNL renders it through a template you control.
+for whichever teams you list in [`teams.json`](teams.json) — soonest first,
+with out-of-season teams dropped — into a single TRMNL screen, using a
+**private plugin (webhook strategy)**: a script fetches all the data and
+pushes it to TRMNL on a schedule via GitHub Actions; TRMNL renders it through
+a template you control.
 
 ## How it fits together
 
-- [`fetch_and_push.py`](fetch_and_push.py) — pulls weather/sun from Open-Meteo,
-  Liverpool's next match from football-data.org, and the next Blue Jays / Maple
-  Leafs / Raptors / Bills game from ESPN's public API. `collect_games()` merges
-  them into one `games` list, sorted by kickoff and with any team whose next
-  game is past the horizon (see `SPORTS_HORIZON_DAYS`) removed. It all goes to
-  your TRMNL webhook URL as `merge_variables`.
+- [`fetch_and_push.py`](fetch_and_push.py) — pulls weather/sun from Open-Meteo
+  and, for each team in [`teams.json`](teams.json), its next game from either
+  football-data.org or ESPN's public API (whichever that entry's `provider`
+  says). `collect_games()` merges them into one `games` list, sorted by
+  kickoff, with any team whose next game is past the horizon (see
+  `SPORTS_HORIZON_DAYS`) removed — and any team entry whose fetch fails
+  (bad abbreviation, API outage, etc.) logged as a warning and skipped,
+  rather than blocking everyone else's games from being pushed. It all goes
+  to your TRMNL webhook URL as `merge_variables`.
+- [`teams.json`](teams.json) — the list of teams to track. Edit this file to
+  add/remove/swap teams; no Python required for the common case. See
+  [`SETUP.md`](SETUP.md) for the field reference (ESPN sport paths, team
+  abbreviations, football-data competition codes). Tracking a team via a
+  provider that isn't ESPN or football-data.org (say, a cricket API) needs a
+  small Python addition, not just a `teams.json` edit — see SETUP.md's
+  "Using a provider that isn't built in yet" for what that involves, and
+  [`Next Step Ideas.md`](Next%20Step%20Ideas.md) idea #2 for making that
+  config-only in a future version.
 - [`template.html`](template.html) — the markup you paste into TRMNL's private
   plugin editor; it interpolates the pushed variables.
 - [`.github/workflows/update-dashboard.yml`](.github/workflows/update-dashboard.yml) —
@@ -60,8 +72,10 @@ deciding whether you've got room for more plugins on the screen.
 
 ### 2. Get a football-data.org API key
 
-Free tier, no credit card: <https://www.football-data.org/client/register>.
-The free tier covers the Premier League, which is what the script queries.
+Only needed if [`teams.json`](teams.json) has a `"provider": "football-data"`
+entry (ESPN-only setups can skip this). Free tier, no credit card:
+<https://www.football-data.org/client/register>. The free tier covers most
+of Europe's top leagues — see [`SETUP.md`](SETUP.md) for competition codes.
 
 ### 3. Decide your weather location
 
@@ -195,28 +209,36 @@ TRMNL's 12-pushes/hour cap. Remove it only if you want a single source of truth.
 
 - **Offseasons**: a team with no scheduled game, or whose next game is more
   than `SPORTS_HORIZON_DAYS` (default 30) away, is dropped from the panel
-  entirely rather than showing a fixture months out — so once the Blue Jays'
-  season ends, they disappear until spring training is within the horizon. If
+  entirely rather than showing a fixture months out — so once a team's
+  season ends, it disappears until its next game is within the horizon. If
   every team is out of season the panel shows a "No games in the next N days"
   line. `get_espn_next_game()` also filters to games whose status is `pre` and
   whose start time is still in the future, so a *postponed* game (which ESPN
   leaves looking not-completed) can't show up as the "next" one.
-- **Rate limits**: football-data.org free tier is 10 requests/minute; this
-  script makes 2 calls per run. `football_data_get()` reads the
-  `X-Requests-Available-Minute` / `X-RequestCounter-Reset` response headers
-  and backs off on a 429, per football-data.org's guidance. The 4 ESPN calls
-  hit an unauthenticated public endpoint with no documented limit. TRMNL
-  webhook free tier is 12 pushes/hour — the 30-minute schedule uses well
-  under that.
-- **Payload size**: TRMNL free tier caps webhook payloads at 2KB. The current
-  payload (current conditions + 6 hourly + 5-day forecast + five teams) is
-  ~1.4KB — still under, but the margin is thinner now, so watch it if you add
-  fields. The weather-icon SVGs live in the template, not the payload, so they
-  don't count.
-- **Sports panel height**: five teams in season at once fills the right column.
-  It's `overflow: hidden`, so adding a sixth team (or very long opponent names)
-  would clip the bottom rather than reflow — trim the list or drop to a
-  one-line-per-team format if you hit that.
+- **Bad team config degrades gracefully**: if a `teams.json` entry has a typo
+  (wrong ESPN abbreviation, a `match` string that doesn't exist in that
+  competition, a transient API error) `collect_games()` logs a `WARNING:` to
+  stderr for that entry and drops it, rather than failing the whole run — the
+  remaining teams still push. Only a structurally broken `teams.json` itself
+  (missing file, invalid JSON, missing required fields) is fatal.
+- **Rate limits**: football-data.org free tier is 10 requests/minute; each
+  `"provider": "football-data"` entry in `teams.json` costs 2 calls per run
+  (list the competition's teams, then that team's matches) — a few such
+  entries are fine, but many will approach the per-minute cap faster.
+  `football_data_get()` reads the `X-Requests-Available-Minute` /
+  `X-RequestCounter-Reset` response headers and backs off on a 429, per
+  football-data.org's guidance. ESPN entries hit an unauthenticated public
+  endpoint with no documented limit. TRMNL webhook free tier is 12
+  pushes/hour — the 30-minute schedule uses well under that.
+- **Payload size**: TRMNL free tier caps webhook payloads at 2KB. The default
+  5-team payload (current conditions + 6 hourly + 5-day forecast + five
+  teams) is ~1.4KB — still under, but the margin is thinner now, so watch it
+  as you add teams or fields. The weather-icon SVGs live in the template, not
+  the payload, so they don't count.
+- **Sports panel height**: five teams in season at once fills the right
+  column. It's `overflow: hidden`, so adding more teams (or very long
+  opponent names) would clip the bottom rather than reflow — trim
+  `teams.json` or drop to a one-line-per-team format if you hit that.
 - **Weather icons**: the script sends a keyword (`clear`, `partly`, `cloudy`,
   `fog`, `rain`, `snow`, `storm`) for current conditions and for each hourly /
   daily slot. `template.html` has one `.wx--<keyword>` CSS rule per keyword,

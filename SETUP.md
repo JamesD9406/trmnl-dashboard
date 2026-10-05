@@ -190,7 +190,8 @@ you'll:
 1. Make a **TRMNL account** and create a **private plugin** (Webhook strategy).
    TRMNL gives you a webhook URL that is the *only* thing tying the data to
    *your* screen.
-2. Get a free **football-data.org API key**.
+2. Get a free **football-data.org API key** (only needed if `teams.json`
+   has a `football-data`-provider team — see "Making it yours" below).
 3. Pick your **weather location** (a latitude/longitude).
 4. Copy `.env.example` to `.env` and fill in those values:
    ```powershell
@@ -213,11 +214,76 @@ you'll:
 
 ## Making it yours
 
-The teams in the sports panel (Liverpool, Blue Jays, Maple Leafs, Raptors,
-Bills) are written into [`fetch_and_push.py`](fetch_and_push.py) — look for
-`collect_games()` and the ESPN calls around it. Changing those to your teams is
-a good first coding exercise; the README's **Notes** section explains how the
-pieces connect. Ask James — that's the fun part.
+The teams in the sports panel come from [`teams.json`](teams.json) in the
+repo root — no Python editing needed. Open it in VS Code; it's a JSON array,
+one object per team:
+
+```json
+{ "provider": "espn", "sport": "football/nfl", "abbr": "BUF", "name": "Buffalo Bills" }
+```
+
+```json
+{ "provider": "football-data", "competition": "PL", "match": "liverpool", "name": "Liverpool FC" }
+```
+
+Add, remove, or edit entries, then run `python fetch_and_push.py` (or
+`python preview.py`) to see the change. A typo in one entry (wrong
+abbreviation, etc.) just drops that team with a warning in the terminal —
+it won't break the others.
+
+**Which provider to use:** ESPN covers the big U.S./Canadian leagues (and
+some soccer) and needs no API key. football-data.org covers European soccer
+leagues in more depth but needs the free API key from step 9.2 above.
+
+**`espn` fields:**
+- `sport` — the league path. Common ones: `football/nfl`, `basketball/nba`,
+  `hockey/nhl`, `baseball/mlb`, `soccer/eng.1` (English Premier League —
+  other leagues follow the same `soccer/{code}` pattern ESPN uses).
+- `abbr` — ESPN's short code for the team, e.g. `BUF`, `TOR`, `LAL`. To find
+  it for a team you're not sure about, visit
+  `https://site.api.espn.com/apis/site/v2/sports/{sport}/teams` in a browser
+  (swap in your `sport` path) and look for that team's `"abbreviation"`
+  field in the JSON.
+
+**`football-data` fields:**
+- `competition` — a football-data.org competition code: `PL` (Premier
+  League), `PD` (La Liga), `BL1` (Bundesliga), `SA` (Serie A), `FL1`
+  (Ligue 1), among others covered by the free tier.
+- `match` — a lowercase snippet of the team's name that's unique within that
+  competition (e.g. `"liverpool"` matches "Liverpool FC"). Doesn't need to be
+  the full name.
+
+Both providers also need a `name` — the display name shown on the dashboard.
+
+The README's **Notes** section explains the broader constraints (rate
+limits, payload size, panel height) that apply as you add teams. Ask James
+if anything's unclear — that's the fun part.
+
+### Using a provider that isn't built in yet
+
+`teams.json` only takes parameters for the two providers above — `espn` and
+`football-data`. It can't describe an API ESPN/football-data.org doesn't
+cover (cricket, say, via a BBC Sport API) just by filling in JSON; there's no
+code yet that knows how to call that API or read its response. Adding one
+means writing a small amount of Python, not editing config:
+
+1. In [`fetch_and_push.py`](fetch_and_push.py), write a new function next to
+   `get_espn_next_game`/`get_football_data_next_match` that calls the new
+   API and returns the same shape those two return:
+   `{"team": ..., "opponent": ..., "kickoff_dt": <datetime>}`, or `None` if
+   there's no upcoming game.
+2. Add a branch for it in `collect_games()`'s `if entry["provider"] == ...`
+   dispatch.
+3. Add the new provider name and its required fields to `load_teams()`'s
+   validation, so a typo'd `teams.json` entry still fails with a clear
+   message instead of a confusing crash.
+
+Nothing else needs to change — `template.html` and `preview.py` only ever
+see the final `{"team", "opponent", "kickoff"}` shape, so they don't care
+where a game came from. See idea #2 in
+[`Next Step Ideas.md`](Next%20Step%20Ideas.md) for a sketch of making this
+config-only (no new Python per provider) — not built yet, but the shape of
+what it'd take is written out there.
 
 ---
 

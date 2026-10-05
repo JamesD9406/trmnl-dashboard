@@ -1,19 +1,24 @@
 """
-Gathers time/date, weather, sunrise/sunset, Liverpool FC's next match, and the
-Buffalo Bills' next game, then pushes them as merge_variables to a TRMNL
+Gathers time/date, weather, sunrise/sunset, and each team's next game (as
+configured in teams.json), then pushes them as merge_variables to a TRMNL
 private plugin via its webhook URL.
 
 Required environment variables:
   TRMNL_WEBHOOK_URL      https://usetrmnl.com/api/custom_plugins/<UUID>
-  FOOTBALL_DATA_API_KEY  free key from https://www.football-data.org/client/register
   WEATHER_LAT            latitude for weather/sunrise-sunset, e.g. "53.4084"
   WEATHER_LON            longitude for weather/sunrise-sunset, e.g. "-2.9916"
+  FOOTBALL_DATA_API_KEY  free key from https://www.football-data.org/client/register
+                         — only required if teams.json has a "football-data"
+                         provider entry; not needed for ESPN-only setups.
 
 Optional:
   TIMEZONE   IANA tz name for displayed times, default "Europe/London"
   TEMP_UNIT  "celsius" or "fahrenheit", default "celsius"
+
+Teams are configured in teams.json (see SETUP.md) rather than hardcoded here.
 """
 
+import json
 import os
 import sys
 import time
@@ -72,6 +77,44 @@ def get_env(name, required=True, default=None):
     if required and not value:
         fail(f"missing required environment variable {name}")
     return value
+
+
+def load_teams(path="teams.json"):
+    """Load and validate the user-editable team list.
+
+    Structural problems here (missing file, bad JSON, bad shape) are config
+    errors, not per-team runtime errors, so they're fatal via fail() — unlike
+    a single team's API call failing later, which is only ever skipped.
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except FileNotFoundError:
+        fail(f"{path} not found — see SETUP.md for how to configure teams")
+    except json.JSONDecodeError as exc:
+        fail(f"{path} is not valid JSON: {exc}")
+
+    if not isinstance(raw, list) or not raw:
+        fail(f"{path} must be a non-empty JSON array of team objects")
+
+    for i, entry in enumerate(raw):
+        if not isinstance(entry, dict):
+            fail(f"{path}[{i}] must be an object")
+        provider = entry.get("provider")
+        if provider not in ("espn", "football-data"):
+            fail(f'{path}[{i}]: "provider" must be "espn" or "football-data", got {provider!r}')
+        if not entry.get("name"):
+            fail(f'{path}[{i}]: missing required field "name"')
+        if provider == "espn":
+            for field in ("sport", "abbr"):
+                if not entry.get(field):
+                    fail(f'{path}[{i}] ({entry["name"]}): missing required field "{field}"')
+        else:  # football-data
+            for field in ("competition", "match"):
+                if not entry.get(field):
+                    fail(f'{path}[{i}] ({entry["name"]}): missing required field "{field}"')
+
+    return raw
 
 
 def to_local(iso_or_dt, tz_name=TIMEZONE):
@@ -203,18 +246,24 @@ def football_data_get(url, api_key, params=None, _attempt=1):
     return resp.json()
 
 
-def get_lfc_next_match(api_key):
-    """Liverpool's next fixture as {team, opponent, kickoff_dt}, or None."""
+def get_football_data_next_match(api_key, competition, name_query, display_name):
+    """A football-data.org team's next fixture as {team, opponent, kickoff_dt},
+    or None. `name_query` is matched case-insensitively as a substring against
+    team names in `competition` (e.g. "liverpool" against competition "PL")."""
     teams = football_data_get(
-        "https://api.football-data.org/v4/competitions/PL/teams", api_key
+        f"https://api.football-data.org/v4/competitions/{competition}/teams", api_key
     )["teams"]
-    liverpool = next((t for t in teams if "liverpool" in t["name"].lower()), None)
-    if not liverpool:
-        fail("could not find Liverpool FC in PL teams list from football-data.org")
+    team = next((t for t in teams if name_query in t["name"].lower()), None)
+    if not team:
+        print(
+            f"WARNING: no team matching {name_query!r} found in {competition} teams list",
+            file=sys.stderr,
+        )
+        return None
 
     today = datetime.now(timezone.utc).date()
     matches = football_data_get(
-        f"https://api.football-data.org/v4/teams/{liverpool['id']}/matches",
+        f"https://api.football-data.org/v4/teams/{team['id']}/matches",
         api_key,
         params={
             "status": "SCHEDULED",
@@ -226,10 +275,10 @@ def get_lfc_next_match(api_key):
         return None
 
     match = min(matches, key=lambda m: m["utcDate"])
-    is_home = match["homeTeam"]["id"] == liverpool["id"]
+    is_home = match["homeTeam"]["id"] == team["id"]
     opponent = match["awayTeam"]["name"] if is_home else match["homeTeam"]["name"]
     return {
-        "team": "Liverpool FC",
+        "team": display_name,
         "opponent": f"{'vs' if is_home else '@'} {opponent}",
         "kickoff_dt": datetime.fromisoformat(match["utcDate"].replace("Z", "+00:00")),
     }
@@ -268,8 +317,18 @@ def get_espn_next_game(sport_path, team_abbr, team_name):
 
     game = min(upcoming, key=kickoff_dt)
     competition = game["competitions"][0]
-    team_side = next(c for c in competition["competitors"] if c["team"]["abbreviation"] == team_abbr)
-    opp_side = next(c for c in competition["competitors"] if c["team"]["abbreviation"] != team_abbr)
+    team_side = next(
+        (c for c in competition["competitors"]
+         if c["team"]["abbreviation"].upper() == team_abbr.upper()),
+        None,
+    )
+    if team_side is None:
+        print(
+            f"WARNING: abbreviation {team_abbr!r} not found among competitors for {team_name}",
+            file=sys.stderr,
+        )
+        return None
+    opp_side = next(c for c in competition["competitors"] if c is not team_side)
     return {
         "team": team_name,
         "opponent": f"{'vs' if team_side.get('homeAway') == 'home' else '@'} {opp_side['team']['displayName']}",
@@ -277,16 +336,30 @@ def get_espn_next_game(sport_path, team_abbr, team_name):
     }
 
 
-def collect_games(football_data_key):
+def collect_games(football_data_key, teams_path="teams.json"):
     """Every followed team's next game, soonest first, dropping teams whose
-    next game is beyond SPORTS_HORIZON_DAYS (i.e. their season is over)."""
-    records = [
-        get_lfc_next_match(football_data_key),
-        get_espn_next_game("baseball/mlb", "TOR", "Toronto Blue Jays"),
-        get_espn_next_game("hockey/nhl", "TOR", "Toronto Maple Leafs"),
-        get_espn_next_game("basketball/nba", "TOR", "Toronto Raptors"),
-        get_espn_next_game("football/nfl", "BUF", "Buffalo Bills"),
-    ]
+    next game is beyond SPORTS_HORIZON_DAYS (i.e. their season is over).
+
+    Teams come from teams.json. A single team's error (network failure, bad
+    abbreviation, etc.) is logged as a warning and skipped — it does not
+    abort the run, so one bad entry can't block everyone else's games from
+    being pushed."""
+    teams = load_teams(teams_path)
+    records = []
+    for entry in teams:
+        try:
+            if entry["provider"] == "espn":
+                record = get_espn_next_game(entry["sport"], entry["abbr"], entry["name"])
+            else:  # football-data
+                record = get_football_data_next_match(
+                    football_data_key, entry["competition"], entry["match"], entry["name"]
+                )
+            records.append(record)
+        except requests.RequestException as exc:
+            print(f"WARNING: skipping {entry['name']}: request failed: {exc}", file=sys.stderr)
+        except (KeyError, ValueError) as exc:
+            print(f"WARNING: skipping {entry['name']}: unexpected response shape: {exc}", file=sys.stderr)
+
     horizon = datetime.now(timezone.utc) + timedelta(days=SPORTS_HORIZON_DAYS)
     games = sorted(
         (r for r in records if r and r["kickoff_dt"] <= horizon),
@@ -316,9 +389,12 @@ def build_merge_variables(football_data_key, lat, lon):
 
 def main():
     webhook_url = get_env("TRMNL_WEBHOOK_URL")
-    football_data_key = get_env("FOOTBALL_DATA_API_KEY")
     lat = get_env("WEATHER_LAT")
     lon = get_env("WEATHER_LON")
+
+    teams = load_teams()
+    needs_football_data = any(t["provider"] == "football-data" for t in teams)
+    football_data_key = get_env("FOOTBALL_DATA_API_KEY", required=needs_football_data)
 
     merge_variables = build_merge_variables(football_data_key, lat, lon)
 

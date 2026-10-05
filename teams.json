@@ -1,0 +1,7 @@
+[
+  { "provider": "football-data", "competition": "PL", "match": "liverpool", "name": "Liverpool FC" },
+  { "provider": "espn", "sport": "baseball/mlb",   "abbr": "TOR", "name": "Toronto Blue Jays" },
+  { "provider": "espn", "sport": "hockey/nhl",     "abbr": "TOR", "name": "Toronto Maple Leafs" },
+  { "provider": "espn", "sport": "basketball/nba", "abbr": "TOR", "name": "Toronto Raptors" },
+  { "provider": "espn", "sport": "football/nfl",   "abbr": "BUF", "name": "Buffalo Bills" }
+]
