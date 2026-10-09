@@ -13,6 +13,16 @@
 -->
 <div class="view view--full">
   <style>
+    /* On the OG 1-bit panel, labels/titles use TRMNL's pixel fonts (crisp), but
+       .value text is anti-aliased Inter at 400-500. Its grey edge pixels get
+       thresholded to black/white, so thin strokes break up and look ragged.
+       A heavier weight leaves enough solid pixels to survive the conversion. */
+    .view {
+      --value-font-weight: 600;
+      --value-small-font-weight: 600;
+      --value-large-font-weight: 600;
+    }
+
     .wx-row {
       display: flex;
       align-items: center;

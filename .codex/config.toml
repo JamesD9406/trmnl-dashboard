@@ -1,0 +1,5 @@
+[mcp_servers.trmnl]
+url = "https://trmnl.com/mcp"
+
+[mcp_servers.trmnl.http_headers]
+Authorization = "Bearer ps_mcp_ddv0inpn0ousjd9ods6zqa4a"
