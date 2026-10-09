@@ -89,10 +89,20 @@
       margin-top: 8px;
     }
 
+    /* Title-bar status (updated time, Wi-Fi, battery): center the icons on
+       the text box rather than via vertical-align, which depends on the
+       font's metrics and sits the icons low with the device's pixel font.
+       The framework right-aligns .instance with text-align, which a flex
+       container ignores, hence justify-content. */
+    .title_bar .instance {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
     /* Battery: outlined body + terminal nub, solid fill scaled to charge. */
     .batt {
       position: relative;
-      display: inline-block;
       box-sizing: border-box;
       width: 24px;
       height: 12px;
@@ -100,7 +110,6 @@
       padding: 1px;
       border: 2px solid currentColor;
       border-radius: 2px;
-      vertical-align: middle;
     }
     .batt::after {
       content: "";
@@ -124,7 +133,6 @@
       gap: 2px;
       height: 12px;
       margin-left: 14px;
-      vertical-align: middle;
     }
     .wifi-bar {
       box-sizing: border-box;
