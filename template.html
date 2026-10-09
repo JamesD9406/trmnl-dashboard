@@ -10,8 +10,11 @@
   used as a CSS mask, painted in currentColor so it renders solid black on the
   e-ink panel. To tweak an icon, URL-decode its data URI, edit the paths, and
   re-encode.
+
+  No outer full-view wrapper div here: TRMNL adds it itself (and its MCP
+  linter rejects markup that includes one). preview.py adds it for the local
+  preview.
 -->
-<div class="view view--full">
   <style>
     /* On the OG 1-bit panel, labels/titles use TRMNL's pixel fonts (crisp), but
        .value text is anti-aliased Inter at 400-500. Its grey edge pixels get
@@ -212,4 +215,3 @@
     <span class="title">Home Dashboard</span>
     <span class="instance">Updated {{ updated_at }}</span>
   </div>
-</div>

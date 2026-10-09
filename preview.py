@@ -100,7 +100,9 @@ PAGE = """<!doctype html>
   <div class="caption">800 &times; 480 &mdash; TRMNL OG &mdash; data: <b>{source}</b></div>
   <div class="frame">
     <div class="screen screen--og screen--1bit">
+      <div class="view view--full">
 {body}
+      </div>
     </div>
   </div>
   <div class="caption">Rendered with TRMNL's live framework CSS. On the device this is 1-bit black &amp; white.</div>
