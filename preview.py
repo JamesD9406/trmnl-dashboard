@@ -131,14 +131,14 @@ def get_variables():
 
 def trmnl_context():
     """Mimic the `trmnl.*` object TRMNL injects into every plugin render, so the
-    Liquid-rendered date and battery in template.html resolve during local
-    preview too. The template gets "now" from Liquid itself; it only needs the
-    tz offset. Battery is a fixed sample value (the real one comes from the
-    device at render time)."""
+    Liquid-rendered date, battery and Wi-Fi in template.html resolve during
+    local preview too. The template gets "now" from Liquid itself; it only
+    needs the tz offset. Battery and Wi-Fi are fixed sample values (the real
+    ones come from the device at render time)."""
     now = datetime.now(ZoneInfo(app.TIMEZONE))
     return {
         "user": {"utc_offset": int(now.utcoffset().total_seconds())},
-        "device": {"percent_charged": 72.5},
+        "device": {"percent_charged": 72.5, "wifi_strength": 65},
     }
 
 
