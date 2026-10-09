@@ -98,11 +98,18 @@
       display: flex;
       align-items: center;
       justify-content: flex-end;
+      /* The pixel font's glyphs sit high in their line box, so centred icons
+         still look low on the device. Negative = move icons up. */
+      --status-icon-nudge: -2px;
+    }
+    .wifi,
+    .batt {
+      position: relative;
+      top: var(--status-icon-nudge);
     }
 
     /* Battery: outlined body + terminal nub, solid fill scaled to charge. */
     .batt {
-      position: relative;
       box-sizing: border-box;
       width: 24px;
       height: 12px;
