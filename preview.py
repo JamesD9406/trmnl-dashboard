@@ -16,7 +16,7 @@ of spacing and sizing, just in colour instead of grayscale.
 import os
 import sys
 import webbrowser
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -40,6 +40,21 @@ HERE = Path(__file__).parent
 TEMPLATE = HERE / "template.html"
 OUTPUT = HERE / "preview.html"
 
+
+def _sample_game(team, opponent, days_ahead, hour, minute):
+    """A sample game `days_ahead` days from today, in collect_games()'s shape."""
+    kickoff = (datetime.now(ZoneInfo(app.TIMEZONE)) + timedelta(days=days_ahead)).replace(
+        hour=hour, minute=minute, second=0, microsecond=0
+    )
+    return {
+        "team": team,
+        "opponent": opponent,
+        "kickoff": app.fmt_kickoff(kickoff),
+        "kickoff_ts": int(kickoff.timestamp()),
+        "kickoff_time": app.fmt_time(kickoff),
+    }
+
+
 SAMPLE = {
     "updated_at": "9:05 AM",
     "weather_temp": 18,
@@ -51,6 +66,9 @@ SAMPLE = {
     "today_lo": 11,
     "sunrise_time": "6:52 AM",
     "sunset_time": "7:56 PM",
+    # Matches the 3 PM rain in the hourly strip below.
+    "heads_up": "Rain from 3 PM",
+    "heads_up_icon": "rain",
     "forecast": [
         {"day": "Mon", "hi": 19, "lo": 11, "icon": "partly"},
         {"day": "Tue", "hi": 22, "lo": 12, "icon": "clear"},
@@ -69,11 +87,12 @@ SAMPLE = {
     # Already sorted soonest-first, the way collect_games() emits it. The Blue
     # Jays are absent here to show an out-of-season team dropping off.
     "sports_horizon_days": 30,
+    # Kickoffs are relative to now so the Today / Tomorrow labels show up.
     "games": [
-        {"team": "Liverpool FC", "opponent": "vs Everton", "kickoff": "Sat Sep 13, 12:30 PM"},
-        {"team": "Buffalo Bills", "opponent": "@ Miami Dolphins", "kickoff": "Sun Sep 14, 1:00 PM"},
-        {"team": "Toronto Maple Leafs", "opponent": "vs Montreal Canadiens", "kickoff": "Mon Sep 29, 7:00 PM"},
-        {"team": "Toronto Raptors", "opponent": "vs Miami Heat", "kickoff": "Fri Oct 3, 7:00 PM"},
+        _sample_game("Liverpool FC", "vs Everton", 0, 19, 30),
+        _sample_game("Buffalo Bills", "@ Miami Dolphins", 1, 13, 0),
+        _sample_game("Toronto Maple Leafs", "vs Montreal Canadiens", 4, 19, 0),
+        _sample_game("Toronto Raptors", "vs Miami Heat", 9, 19, 30),
     ],
 }
 

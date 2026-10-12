@@ -26,28 +26,46 @@
       --value-large-font-weight: 600;
     }
 
-    .wx-row {
+    /* Current conditions: icon + big temp as the weather "hero", with the
+       secondary details stacked to the right in smaller type. */
+    .now-row {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
+    }
+    .now-temp {
+      line-height: 1;
+    }
+    .now-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-left: 6px;
     }
     .wx {
       display: inline-block;
+      flex-shrink: 0;
       background: currentColor;
       -webkit-mask: no-repeat center / contain;
       mask: no-repeat center / contain;
     }
     .wx--lg {
-      width: 46px;
-      height: 46px;
+      width: 56px;
+      height: 56px;
     }
     .forecast .wx {
-      width: 26px;
-      height: 26px;
+      width: 40px;
+      height: 40px;
     }
     .hourly .wx {
-      width: 22px;
-      height: 22px;
+      width: 28px;
+      height: 28px;
+    }
+    /* The framework's .content shrinks to fit, which left the hourly strip
+       bunched up on the left; make it span the full column width instead. */
+    .hourly-item,
+    .hourly-item .content {
+      width: 100%;
     }
 
     .forecast,
@@ -57,8 +75,13 @@
       justify-content: space-between;
       gap: 6px;
     }
+    /* Forecast takes all leftover height so it isn't stranded above a gap,
+       and each day is its own cell with a thin divider between them. */
     .forecast {
-      padding-top: 12px;
+      flex: 1;
+      align-items: center;
+      margin-top: 6px;
+      padding-top: 10px;
       border-top: 2px solid currentColor;
     }
     .forecast .fc {
@@ -66,7 +89,24 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 5px;
+      justify-content: center;
+      gap: 6px;
+      padding: 2px 0;
+    }
+    .forecast .fc + .fc {
+      border-left: 1px solid currentColor;
+    }
+
+    .weekday {
+      display: block;
+      margin-bottom: 2px;
+    }
+    .games-head {
+      display: block;
+      margin-bottom: 4px;
+    }
+    .when-today {
+      padding: 0 4px;
     }
     .hourly .hr {
       flex: 1;
@@ -80,15 +120,9 @@
       white-space: nowrap;
     }
 
-    /* Date sits tight to the top of the column; small gap before the H/L/now line. */
     .date-line {
       line-height: 1;
-      margin-top: -6px;
     }
-    .date-line + .wx-row {
-      margin-top: 8px;
-    }
-
     /* Title-bar status (updated time, Wi-Fi, battery): center the icons on
        the text box rather than via vertical-align, which depends on the
        font's metrics and sits the icons low with the device's pixel font.
@@ -98,9 +132,22 @@
       display: flex;
       align-items: center;
       justify-content: flex-end;
+    }
+    .title_bar {
       /* The pixel font's glyphs sit high in their line box, so centred icons
          still look low on the device. Negative = move icons up. */
       --status-icon-nudge: -2px;
+    }
+    .title_bar .heads-up {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .heads-up .wx {
+      width: 20px;
+      height: 20px;
+      position: relative;
+      top: var(--status-icon-nudge);
     }
     .wifi,
     .batt {
@@ -208,35 +255,43 @@
             1` strips the day's leading zero in a cross-platform way. {%
             endcomment %} {% assign local_ts = "now" | date: "%s" | plus:
             trmnl.user.utc_offset %}
+            <span class="title title--small weekday"
+              >{{ local_ts | date: "%A" }}</span
+            >
             <span class="value value--large date-line"
               >{{ local_ts | date: "%B" }} {{ local_ts | date: "%d" | times: 1
               }}</span
             >
-            <span class="wx-row">
-              <span class="value value--small"
-                >H {{ today_hi }}&deg; &middot; L {{ today_lo }}&deg; &middot;
-                now {{ weather_temp }}&deg;{{ temp_unit_short }}</span
-              >
-              <i class="wx wx--lg wx--{{ weather_icon }}"></i>
-            </span>
-            <span class="label"
-              >feels like {{ weather_feels_like }}&deg; &middot; {{
-              weather_humidity }}% humidity</span
-            >
           </div>
         </div>
 
-        <!-- Sunrise / Sunset -->
+        <!-- Current conditions: big temp + icon, details stacked beside -->
         <div class="item">
           <div class="content">
-            <span class="value value--small"
-              >&#9728; {{ sunrise_time }} &nbsp; &#9790; {{ sunset_time }}</span
-            >
+            <div class="now-row">
+              <i class="wx wx--lg wx--{{ weather_icon }}"></i>
+              <span class="value value--xlarge now-temp"
+                >{{ weather_temp }}&deg;</span
+              >
+              <div class="now-meta">
+                <span class="value value--xsmall"
+                  >H {{ today_hi }}&deg; &middot; L {{ today_lo }}&deg;</span
+                >
+                <span class="label"
+                  >feels {{ weather_feels_like }}&deg; &middot; {{
+                  weather_humidity }}% humidity</span
+                >
+                <span class="label"
+                  >&#9728; {{ sunrise_time }} &nbsp; &#9790; {{
+                  sunset_time }}</span
+                >
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Hourly forecast -->
-        <div class="item">
+        <div class="item hourly-item">
           <div class="content">
             <span class="hourly">
               {% for h in hourly %}
@@ -253,11 +308,20 @@
 
       <!-- Upcoming Games -->
       <div class="column">
+        {% comment %} Today/Tomorrow is worked out here against the render
+        clock (same trick as the date), not in the push, so it flips at
+        midnight even if the last push was earlier. {% endcomment %}
+        {% assign today_key = local_ts | date: "%Y%m%d" %}
+        {% assign tomorrow_key = local_ts | plus: 86400 | date: "%Y%m%d" %}
+        <span class="title title--small games-head">Next up</span>
         {% for g in games %}
+        {% assign game_key = g.kickoff_ts | plus: trmnl.user.utc_offset | date: "%Y%m%d" %}
         <div class="item">
           <div class="content">
-            <span class="value value--small">{{ g.team }}</span>
-            <span class="label">{{ g.opponent }} &middot; {{ g.kickoff }}</span>
+            <span class="value value--xsmall">{{ g.team }}</span>
+            <span class="label"
+              >{% if game_key == today_key %}<span class="label label--filled when-today">Today {{ g.kickoff_time }}</span>{% elsif game_key == tomorrow_key %}<b>Tomorrow {{ g.kickoff_time }}</b>{% else %}{{ g.kickoff }}{% endif %}&nbsp;&middot; {{ g.opponent }}</span
+            >
           </div>
         </div>
         {% else %}
@@ -276,16 +340,27 @@
     <div class="forecast">
       {% for d in forecast %}
       <span class="fc">
-        <span class="label fc-t">{{ d.day }}</span>
+        <span class="title title--small fc-t">{{ d.day }}</span>
         <i class="wx wx--{{ d.icon }}"></i>
-        <span class="label fc-t">{{ d.hi }}&deg; / {{ d.lo }}&deg;</span>
+        <span class="fc-t"
+          ><span class="value value--xsmall">{{ d.hi }}&deg;</span>
+          <span class="label">{{ d.lo }}&deg;</span></span
+        >
       </span>
       {% endfor %}
     </div>
   </div>
 
   <div class="title_bar">
-    <span class="title">Home Dashboard</span>
+    {% comment %} heads_up is the push's one-line "worth knowing" (rain
+    coming, big temperature swing, ...); see heads_up() in fetch_and_push.py.
+    {% endcomment %}
+    <span class="title heads-up"
+      >{% if heads_up_icon != "" and heads_up_icon %}<i
+        class="wx wx--{{ heads_up_icon }}"
+      ></i
+      >{% endif %}{{ heads_up | default: "Home Dashboard" }}</span
+    >
     <span class="instance"
       >Updated {{ updated_at }} {% if trmnl.device.wifi_strength %}{% comment
       %} Bar n lights at n*20% signal, so 80%+ shows all four. {% endcomment

@@ -151,6 +151,37 @@ def fmt_kickoff(iso_or_dt, tz_name=TIMEZONE):
     return f"{fmt_date(local)}, {fmt_time(local)}"
 
 
+WET_ICONS = {"rain": "Rain", "snow": "Snow", "storm": "Storms"}
+HEADS_UP_HOURS = 12
+TEMP_SWING_ALERT = 5  # degrees between today's and tomorrow's high
+
+
+def heads_up(current_icon, upcoming, today_hi, tomorrow_hi):
+    """One short line for the title bar: the most useful thing to know that
+    the rest of the screen doesn't already say outright.
+
+    `upcoming` is [(datetime, icon)] for the next HEADS_UP_HOURS hours.
+    Priority: rain/snow/storms starting or stopping soon, then a big
+    temperature swing tomorrow, then a reassuring "dry" note.
+    Returns (text, icon) — icon is a weather keyword, or "" for none."""
+    if current_icon in WET_ICONS:
+        dry = next((t for t, icon in upcoming if icon not in WET_ICONS), None)
+        word = WET_ICONS[current_icon]
+        if dry:
+            return f"{word} until {fmt_hour(dry)}", current_icon
+        return f"{word} for the next {HEADS_UP_HOURS} hrs", current_icon
+
+    wet = next(((t, icon) for t, icon in upcoming if icon in WET_ICONS), None)
+    if wet:
+        return f"{WET_ICONS[wet[1]]} from {fmt_hour(wet[0])}", wet[1]
+
+    swing = tomorrow_hi - today_hi
+    if abs(swing) >= TEMP_SWING_ALERT:
+        return f"Tomorrow {abs(swing)}° {'warmer' if swing > 0 else 'colder'}", ""
+
+    return f"Dry for the next {HEADS_UP_HOURS} hrs", ""
+
+
 def get_weather_and_sun(lat, lon):
     resp = requests.get(
         "https://api.open-meteo.com/v1/forecast",
@@ -183,21 +214,32 @@ def get_weather_and_sun(lat, lon):
         for i in range(1, len(daily["time"]))
     ]
 
-    # Next 6 whole hours. Open-Meteo hourly times are naive local wall-clock
+    # Upcoming whole hours. Open-Meteo hourly times are naive local wall-clock
     # strings (we passed `timezone`), so compare against a naive local now.
+    # The strip shows the next 6; the title-bar heads-up looks further ahead.
     now_naive = datetime.now(ZoneInfo(TIMEZONE)).replace(tzinfo=None)
-    hourly = []
-    for t, temp, code in zip(
-        hourly_src["time"], hourly_src["temperature_2m"], hourly_src["weather_code"]
-    ):
-        slot = datetime.fromisoformat(t)
-        if slot <= now_naive:
-            continue
-        hourly.append({"hour": fmt_hour(slot), "temp": round(temp), "icon": wmo_icon(code)})
-        if len(hourly) == 6:
-            break
+    upcoming = [
+        (datetime.fromisoformat(t), round(temp), wmo_icon(code))
+        for t, temp, code in zip(
+            hourly_src["time"], hourly_src["temperature_2m"], hourly_src["weather_code"]
+        )
+        if datetime.fromisoformat(t) > now_naive
+    ][:HEADS_UP_HOURS]
+    hourly = [
+        {"hour": fmt_hour(slot), "temp": temp, "icon": icon}
+        for slot, temp, icon in upcoming[:6]
+    ]
+
+    alert_text, alert_icon = heads_up(
+        wmo_icon(current["weather_code"]),
+        [(slot, icon) for slot, _, icon in upcoming],
+        round(daily["temperature_2m_max"][0]),
+        round(daily["temperature_2m_max"][1]),
+    )
 
     return {
+        "heads_up": alert_text,
+        "heads_up_icon": alert_icon,
         "weather_temp": round(current["temperature_2m"]),
         "weather_feels_like": round(current["apparent_temperature"]),
         "weather_humidity": current["relative_humidity_2m"],
@@ -368,7 +410,15 @@ def collect_games(football_data_key, teams_path="teams.json"):
     return {
         "sports_horizon_days": SPORTS_HORIZON_DAYS,
         "games": [
-            {"team": g["team"], "opponent": g["opponent"], "kickoff": fmt_kickoff(g["kickoff_dt"])}
+            {
+                "team": g["team"],
+                "opponent": g["opponent"],
+                "kickoff": fmt_kickoff(g["kickoff_dt"]),
+                # The template compares these against its render clock to
+                # show "Today 7:00 PM" / "Tomorrow 7:00 PM".
+                "kickoff_ts": int(g["kickoff_dt"].timestamp()),
+                "kickoff_time": fmt_time(to_local(g["kickoff_dt"])),
+            }
             for g in games
         ],
     }
