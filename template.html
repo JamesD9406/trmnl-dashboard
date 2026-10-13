@@ -42,6 +42,9 @@
       gap: 2px;
       margin-left: 6px;
     }
+    .sun-times {
+      white-space: nowrap;
+    }
     .wx {
       display: inline-block;
       flex-shrink: 0;
@@ -281,9 +284,9 @@
                   >feels {{ weather_feels_like }}&deg; &middot; {{
                   weather_humidity }}% humidity</span
                 >
-                <span class="label"
-                  >&#9728; {{ sunrise_time }} &nbsp; &#9790; {{
-                  sunset_time }}</span
+                <span class="label sun-times"
+                  >&#9728; {{ sunrise_time | remove: " AM" }} &nbsp; &#9790; {{
+                  sunset_time | remove: " PM" }}</span
                 >
               </div>
             </div>
