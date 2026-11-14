@@ -26,6 +26,8 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 try:
     from dotenv import load_dotenv
@@ -61,6 +63,44 @@ WMO_ICONS = {
     85: "snow", 86: "snow",
     95: "storm", 96: "storm", 99: "storm",
 }
+
+
+def make_session():
+    """A requests session that retries transient failures.
+
+    GitHub-hosted runners share IPs with many other projects calling the same
+    free APIs (Open-Meteo especially), so timeouts, 429s, 5xxs and dropped TLS
+    handshakes are routine. Up to 3 retries with backoff (0s, 4s, 8s), honouring
+    Retry-After on 429/503. Only idempotent methods (GET) retry on read
+    timeouts/bad statuses; the webhook POST still retries on connect failures.
+    """
+    retry = Retry(
+        total=3,
+        backoff_factor=2,
+        status_forcelist=(429, 500, 502, 503, 504),
+        raise_on_status=False,  # hand back the last response; raise_for_status() reports it
+    )
+    session = requests.Session()
+    session.mount("https://", HTTPAdapter(max_retries=retry))
+    return session
+
+
+HTTP = make_session()
+
+
+def get_json(url, attempts=3, **kwargs):
+    """GET JSON via the retrying session. Also retries when a 200 comes back
+    with a non-JSON body (an overloaded upstream occasionally does this)."""
+    for attempt in range(1, attempts + 1):
+        resp = HTTP.get(url, timeout=15, **kwargs)
+        resp.raise_for_status()
+        try:
+            return resp.json()
+        except ValueError:
+            if attempt == attempts:
+                raise
+            print(f"Non-JSON response from {url}; retrying ({attempt}/{attempts - 1})")
+            time.sleep(5)
 
 
 def wmo_icon(code):
@@ -183,7 +223,7 @@ def heads_up(current_icon, upcoming, today_hi, tomorrow_hi):
 
 
 def get_weather_and_sun(lat, lon):
-    resp = requests.get(
+    data = get_json(
         "https://api.open-meteo.com/v1/forecast",
         params={
             "latitude": lat,
@@ -195,10 +235,7 @@ def get_weather_and_sun(lat, lon):
             "timezone": TIMEZONE,
             "forecast_days": 6,  # today + next 5
         },
-        timeout=15,
     )
-    resp.raise_for_status()
-    data = resp.json()
     current = data["current"]
     daily = data["daily"]
     hourly_src = data["hourly"]
@@ -336,13 +373,10 @@ def get_espn_next_game(sport_path, team_abbr, team_name):
     start time is still in the future — postponed/finished games report other
     states, and postponed ones in particular keep a stale future-looking flag.
     """
-    resp = requests.get(
+    events = get_json(
         f"https://site.api.espn.com/apis/site/v2/sports/{sport_path}"
         f"/teams/{team_abbr.lower()}/schedule",
-        timeout=15,
-    )
-    resp.raise_for_status()
-    events = resp.json().get("events", [])
+    ).get("events", [])
 
     now = datetime.now(timezone.utc)
 
@@ -448,7 +482,7 @@ def main():
 
     merge_variables = build_merge_variables(football_data_key, lat, lon)
 
-    resp = requests.post(webhook_url, json={"merge_variables": merge_variables}, timeout=15)
+    resp = HTTP.post(webhook_url, json={"merge_variables": merge_variables}, timeout=15)
     resp.raise_for_status()
     print("Pushed to TRMNL:", merge_variables)
 

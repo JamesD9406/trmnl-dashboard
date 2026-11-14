@@ -1,3 +1,5 @@
+python preview.py
+
 # Getting started on Windows (for a first-time coder)
 
 This walks you from a fresh Windows PC to running the dashboard script on your
@@ -5,7 +7,7 @@ own machine and seeing a preview of the screen in your browser. No prior
 programming experience assumed. Take it one numbered step at a time.
 
 When you're done here, follow [`README.md`](README.md) → **One-time setup** to
-point it at *your* TRMNL device and put it on autopilot (GitHub Actions running
+point it at _your_ TRMNL device and put it on autopilot (GitHub Actions running
 the update, and a free external timer to trigger it on schedule).
 
 Everything below is free.
@@ -14,11 +16,11 @@ Everything below is free.
 
 ## What you're installing and why
 
-| Tool | What it's for |
-| --- | --- |
-| **Git** | Downloads the code and tracks your changes. |
-| **Python** | The language the script is written in; runs it. |
-| **VS Code** | The editor you'll read and change the code in. It also gives you a built-in terminal. |
+| Tool                 | What it's for                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| **Git**              | Downloads the code and tracks your changes.                                           |
+| **Python**           | The language the script is written in; runs it.                                       |
+| **VS Code**          | The editor you'll read and change the code in. It also gives you a built-in terminal. |
 | **A GitHub account** | Where your copy of the project lives online, and what runs it on a schedule for free. |
 
 A **terminal** (also called a "command line" or "shell") is the text box where
@@ -100,7 +102,7 @@ Open that repo's page on github.com in your browser.
    paste the URL.
 3. It asks where to put the folder — pick somewhere like your `Documents`
    folder. When it finishes, click **"Open"** in the popup.
-4. If VS Code asks *"Do you trust the authors of the files in this folder?"* —
+4. If VS Code asks _"Do you trust the authors of the files in this folder?"_ —
    yes, it's your code, click **"Yes, I trust the authors"**.
 
 You now have the project open. On the left you'll see files like
@@ -142,9 +144,11 @@ Your prompt should now start with **`(.venv)`**. That means it's active.
 
 > **If you get a red error about "running scripts is disabled on this
 > system"**, run this once, then try the `Activate.ps1` line again:
+>
 > ```powershell
 > Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 > ```
+>
 > Answer `Y` if it prompts. This is a standard, safe setting for development.
 
 VS Code usually notices the `.venv` and will offer to use it automatically —
@@ -188,8 +192,8 @@ Open [`README.md`](README.md) and work through **"One-time setup"**. In short,
 you'll:
 
 1. Make a **TRMNL account** and create a **private plugin** (Webhook strategy).
-   TRMNL gives you a webhook URL that is the *only* thing tying the data to
-   *your* screen.
+   TRMNL gives you a webhook URL that is the _only_ thing tying the data to
+   _your_ screen.
 2. Get a free **football-data.org API key** (only needed if `teams.json`
    has a `football-data`-provider team — see "Making it yours" below).
 3. Pick your **weather location** (a latitude/longitude).
@@ -219,11 +223,21 @@ repo root — no Python editing needed. Open it in VS Code; it's a JSON array,
 one object per team:
 
 ```json
-{ "provider": "espn", "sport": "football/nfl", "abbr": "BUF", "name": "Buffalo Bills" }
+{
+  "provider": "espn",
+  "sport": "football/nfl",
+  "abbr": "BUF",
+  "name": "Buffalo Bills"
+}
 ```
 
 ```json
-{ "provider": "football-data", "competition": "PL", "match": "liverpool", "name": "Liverpool FC" }
+{
+  "provider": "football-data",
+  "competition": "PL",
+  "match": "liverpool",
+  "name": "Liverpool FC"
+}
 ```
 
 Add, remove, or edit entries, then run `python fetch_and_push.py` (or
@@ -236,6 +250,7 @@ some soccer) and needs no API key. football-data.org covers European soccer
 leagues in more depth but needs the free API key from step 9.2 above.
 
 **`espn` fields:**
+
 - `sport` — the league path. Common ones: `football/nfl`, `basketball/nba`,
   `hockey/nhl`, `baseball/mlb`, `soccer/eng.1` (English Premier League —
   other leagues follow the same `soccer/{code}` pattern ESPN uses).
@@ -246,6 +261,7 @@ leagues in more depth but needs the free API key from step 9.2 above.
   field in the JSON.
 
 **`football-data` fields:**
+
 - `competition` — a football-data.org competition code: `PL` (Premier
   League), `PD` (La Liga), `BL1` (Bundesliga), `SA` (Serie A), `FL1`
   (Ligue 1), among others covered by the free tier.
@@ -289,13 +305,13 @@ what it'd take is written out there.
 
 ## Everyday commands, once you're set up
 
-| You want to… | Do this |
-| --- | --- |
-| Open the project | Open VS Code → **File → Open Recent** |
-| Turn on the venv in a new terminal | `.\.venv\Scripts\Activate.ps1` |
-| Preview the layout | `python preview.py --fake` (or `python preview.py` for live data) |
-| Push real data to your screen now | `python fetch_and_push.py` |
-| Save your code changes | In VS Code's **Source Control** tab (`Ctrl+Shift+G`): type a message, **Commit**, then **Sync / Push** |
+| You want to…                       | Do this                                                                                                |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Open the project                   | Open VS Code → **File → Open Recent**                                                                  |
+| Turn on the venv in a new terminal | `.\.venv\Scripts\Activate.ps1`                                                                         |
+| Preview the layout                 | `python preview.py --fake` (or `python preview.py` for live data)                                      |
+| Push real data to your screen now  | `python fetch_and_push.py`                                                                             |
+| Save your code changes             | In VS Code's **Source Control** tab (`Ctrl+Shift+G`): type a message, **Commit**, then **Sync / Push** |
 
 If something breaks, the error text in the terminal is the thing to copy and
 send to James — it almost always says what's wrong.
