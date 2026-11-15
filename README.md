@@ -11,7 +11,8 @@ a template you control.
 ## How it fits together
 
 - [`fetch_and_push.py`](fetch_and_push.py) — pulls weather/sun from Open-Meteo
-  and, for each team in [`teams.json`](teams.json), its next game from either
+  (falling back to MET Norway if it's down; if both are down the push is
+  skipped and the screen keeps its last data) and, for each team in [`teams.json`](teams.json), its next game from either
   football-data.org or ESPN's public API (whichever that entry's `provider`
   says). `collect_games()` merges them into one `games` list, sorted by
   kickoff, with any team whose next game is past the horizon (see

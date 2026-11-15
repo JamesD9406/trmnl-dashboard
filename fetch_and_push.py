@@ -19,6 +19,7 @@ Teams are configured in teams.json (see SETUP.md) rather than hardcoded here.
 """
 
 import json
+import math
 import os
 import sys
 import time
@@ -222,7 +223,17 @@ def heads_up(current_icon, upcoming, today_hi, tomorrow_hi):
     return f"Dry for the next {HEADS_UP_HOURS} hrs", ""
 
 
-def get_weather_and_sun(lat, lon):
+class WeatherUnavailable(Exception):
+    """Every weather source failed. main() skips the push rather than failing,
+    so the device simply keeps showing its last good data."""
+
+
+WEATHER_ERRORS = (requests.RequestException, ValueError, KeyError, IndexError, TypeError)
+
+
+def fetch_open_meteo(lat, lon):
+    """Primary source. Returns {current, hourly, daily} in Open-Meteo's own
+    shape, which is also the shape fetch_met_norway() normalises to."""
     data = get_json(
         "https://api.open-meteo.com/v1/forecast",
         params={
@@ -236,6 +247,139 @@ def get_weather_and_sun(lat, lon):
             "forecast_days": 6,  # today + next 5
         },
     )
+    return {"current": data["current"], "hourly": data["hourly"], "daily": data["daily"]}
+
+
+# MET Norway (api.met.no): free, keyless, separate infrastructure from
+# Open-Meteo. Its terms require a User-Agent identifying the app.
+MET_HEADERS = {"User-Agent": "trmnl-dashboard/1.0 https://github.com/JamesD9406/trmnl-dashboard"}
+
+
+def met_symbol_to_wmo(symbol):
+    """Map a MET symbol_code (e.g. 'lightrainshowers_day') to the nearest WMO
+    code, so descriptions and icons reuse the Open-Meteo tables above. Rule
+    based rather than a lookup, since MET's list includes misspelled codes
+    like 'lightssleetshowersandthunder'."""
+    base = symbol.split("_")[0]
+    if "thunder" in base:
+        return 95
+    fixed = {"clearsky": 0, "fair": 1, "partlycloudy": 2, "cloudy": 3, "fog": 45}
+    if base in fixed:
+        return fixed[base]
+    level = 0 if "light" in base else 2 if "heavy" in base else 1
+    showers = "showers" in base
+    if "snow" in base:
+        return (85, 85, 86)[level] if showers else (71, 73, 75)[level]
+    if "sleet" in base:
+        return 66 if level == 0 else 67  # closest WMO: freezing rain
+    return (80, 81, 82)[level] if showers else (61, 63, 65)[level]
+
+
+def met_symbol(data, *periods):
+    """First available symbol_code among the given forecast periods."""
+    for period in periods:
+        if period in data:
+            return data[period]["summary"]["symbol_code"]
+    raise KeyError(f"no symbol_code in any of {periods}")
+
+
+def apparent_temperature(temp_c, humidity, wind_ms):
+    """Australian apparent temperature (Steadman), the formula Open-Meteo
+    uses for its own `apparent_temperature`, so the fallback matches."""
+    vapour = humidity / 100 * 6.105 * math.exp(17.27 * temp_c / (237.7 + temp_c))
+    return temp_c + 0.33 * vapour - 0.70 * wind_ms - 4.00
+
+
+def fetch_met_norway(lat, lon):
+    """Fallback source, normalised to fetch_open_meteo()'s shape.
+
+    Differences from Open-Meteo: hourly steps only run ~2.5 days ahead (then
+    6-hourly), so later days' hi/lo come from fewer samples; and today's hi/lo
+    covers only the hours remaining, not the whole day."""
+    tz = ZoneInfo(TIMEZONE)
+    lat, lon = round(float(lat), 4), round(float(lon), 4)  # MET asks for <= 4 decimals
+
+    def unit(celsius):  # MET is always Celsius
+        return celsius * 9 / 5 + 32 if TEMP_UNIT == "fahrenheit" else celsius
+
+    series = get_json(
+        "https://api.met.no/weatherapi/locationforecast/2.0/compact",
+        params={"lat": lat, "lon": lon},
+        headers=MET_HEADERS,
+    )["properties"]["timeseries"]
+    # (naive local time, entry data), matching Open-Meteo's local wall-clock times.
+    rows = [(to_local(e["time"]).replace(tzinfo=None), e["data"]) for e in series]
+
+    now_data = rows[0][1]
+    now = now_data["instant"]["details"]
+    current = {
+        "temperature_2m": unit(now["air_temperature"]),
+        "apparent_temperature": unit(
+            apparent_temperature(now["air_temperature"], now["relative_humidity"], now.get("wind_speed", 0))
+        ),
+        "relative_humidity_2m": round(now["relative_humidity"]),
+        "weather_code": met_symbol_to_wmo(met_symbol(now_data, "next_1_hours", "next_6_hours")),
+    }
+
+    hourly_rows = [(t, d) for t, d in rows if "next_1_hours" in d]
+    hourly = {
+        "time": [t.isoformat() for t, _ in hourly_rows],
+        "temperature_2m": [unit(d["instant"]["details"]["air_temperature"]) for _, d in hourly_rows],
+        "weather_code": [met_symbol_to_wmo(met_symbol(d, "next_1_hours")) for _, d in hourly_rows],
+    }
+
+    dates = sorted({t.date() for t, _ in rows})[:6]  # today + next 5
+    daily = {"time": [], "weather_code": [], "temperature_2m_max": [], "temperature_2m_min": []}
+    for day in dates:
+        day_rows = [(t, d) for t, d in rows if t.date() == day]
+        temps = [unit(d["instant"]["details"]["air_temperature"]) for _, d in day_rows]
+        # The day's icon: the forecast period starting closest to midday.
+        midday = datetime.combine(day, datetime.min.time()).replace(hour=12)
+        _, noon_data = min(day_rows, key=lambda r: abs(r[0] - midday))
+        daily["time"].append(day.isoformat())
+        daily["weather_code"].append(
+            met_symbol_to_wmo(met_symbol(noon_data, "next_6_hours", "next_12_hours", "next_1_hours"))
+        )
+        daily["temperature_2m_max"].append(max(temps))
+        daily["temperature_2m_min"].append(min(temps))
+
+    # Sunrise/sunset live on a separate endpoint; only today's are displayed.
+    offset_min = int(datetime.now(tz).utcoffset().total_seconds() // 60)
+    sign = "+" if offset_min >= 0 else "-"
+    sun = get_json(
+        "https://api.met.no/weatherapi/sunrise/3.0/sun",
+        params={
+            "lat": lat,
+            "lon": lon,
+            "date": dates[0].isoformat(),
+            "offset": f"{sign}{abs(offset_min) // 60:02d}:{abs(offset_min) % 60:02d}",
+        },
+        headers=MET_HEADERS,
+    )["properties"]
+    daily["sunrise"], daily["sunset"] = (
+        [datetime.fromisoformat(sun[key]["time"]).astimezone(tz).replace(tzinfo=None).isoformat()]
+        for key in ("sunrise", "sunset")
+    )
+
+    return {"current": current, "hourly": hourly, "daily": daily}
+
+
+def fetch_weather(lat, lon):
+    """Open-Meteo, falling back to MET Norway. Raises WeatherUnavailable if both fail."""
+    try:
+        return fetch_open_meteo(lat, lon)
+    except WEATHER_ERRORS as exc:
+        print(f"WARNING: Open-Meteo failed ({exc}); falling back to MET Norway", file=sys.stderr)
+    try:
+        data = fetch_met_norway(lat, lon)
+    except WEATHER_ERRORS as exc:
+        raise WeatherUnavailable(f"Open-Meteo and MET Norway both failed; last error: {exc}") from exc
+    print("Weather from MET Norway (fallback)")
+    return data
+
+
+def get_weather_and_sun(lat, lon):
+    data = fetch_weather(lat, lon)
     current = data["current"]
     daily = data["daily"]
     hourly_src = data["hourly"]
@@ -480,7 +624,13 @@ def main():
     needs_football_data = any(t["provider"] == "football-data" for t in teams)
     football_data_key = get_env("FOOTBALL_DATA_API_KEY", required=needs_football_data)
 
-    merge_variables = build_merge_variables(football_data_key, lat, lon)
+    try:
+        merge_variables = build_merge_variables(football_data_key, lat, lon)
+    except WeatherUnavailable as exc:
+        # Not worth a red run: skipping the push leaves the device showing its
+        # last good data, and the next scheduled run will try again.
+        print(f"::warning::Skipped push, weather unavailable: {exc}")
+        return
 
     resp = HTTP.post(webhook_url, json={"merge_variables": merge_variables}, timeout=15)
     resp.raise_for_status()
